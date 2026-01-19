@@ -8,6 +8,19 @@ const port = Number(process.env.PORT || 3000)
 const hookPath = process.env.WEBHOOK_PATH || `/tg/${process.env.BOT_TOKEN}`
 const domain = process.env.RENDER_EXTERNAL_URL || process.env.WEBHOOK_DOMAIN
 
+const allowedUsers = new Set(
+  (process.env.ALLOWED_USERS || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+)
+
+function isAllowed(ctx) {
+  if (allowedUsers.size === 0) return true
+  const id = String(ctx.from?.id || "")
+  return allowedUsers.has(id)
+}
+
 const { google } = require("googleapis")
 
 const bot = new Telegraf(process.env.BOT_TOKEN)
@@ -216,10 +229,12 @@ async function startCategoryFlow(ctx, invoice) {
 }
 
 bot.start(async ctx => {
+  if (!isAllowed(ctx)) return ctx.reply("Acesso restrito.")
   await ctx.reply("Manda a nota fiscal em PDF ou PNG como arquivo que eu leio para você.")
 })
 
 bot.on("document", async ctx => {
+  if (!isAllowed(ctx)) return ctx.reply("Acesso restrito.")
   try {
     const doc = ctx.message.document
     if (!doc) return ctx.reply("Não consegui ver o arquivo.")
@@ -245,6 +260,7 @@ bot.on("document", async ctx => {
 })
 
 bot.on("photo", async ctx => {
+  if (!isAllowed(ctx)) return ctx.reply("Acesso restrito.")
   try {
     const photos = ctx.message.photo
     const largest = photos[photos.length - 1]
@@ -259,6 +275,7 @@ bot.on("photo", async ctx => {
 })
 
 bot.action(/^cat:(\d+)$/, async ctx => {
+  if (!isAllowed(ctx)) return ctx.answerCbQuery()
   try {
     await ctx.answerCbQuery()
     const state = userState.get(ctx.from.id)
@@ -282,6 +299,7 @@ bot.action(/^cat:(\d+)$/, async ctx => {
 })
 
 bot.action(/^pay:(\d+)$/, async ctx => {
+  if (!isAllowed(ctx)) return ctx.answerCbQuery()
   try {
     await ctx.answerCbQuery()
     const state = userState.get(ctx.from.id)
@@ -305,6 +323,7 @@ bot.action(/^pay:(\d+)$/, async ctx => {
 })
 
 bot.action(/^ess:(yes|no)$/, async ctx => {
+  if (!isAllowed(ctx)) return ctx.answerCbQuery()
   try {
     await ctx.answerCbQuery()
     const state = userState.get(ctx.from.id)
@@ -325,6 +344,7 @@ bot.action(/^ess:(yes|no)$/, async ctx => {
 
 
 bot.on("text", async ctx => {
+  if (!isAllowed(ctx)) return ctx.reply("Acesso restrito.")
   const state = userState.get(ctx.from.id)
 
   if (state?.step === "description") {
